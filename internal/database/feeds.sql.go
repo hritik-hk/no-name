@@ -49,6 +49,7 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 }
 
 const getFeeds = `-- name: GetFeeds :many
+
 SELECT id, user_id, created_at, updated_at, name, url FROM feeds
 `
 
