@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hritik-hk/rss-aggregator/internal/auth"
 	"github.com/hritik-hk/rss-aggregator/internal/database"
 )
 
@@ -22,7 +23,7 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 
 	err := decoder.Decode(&params)
 	if err != nil {
-		responseWithError(w, 400, fmt.Sprintf("error parsing JSON: %v", err))
+		respondWithError(w, 400, fmt.Sprintf("error parsing JSON: %v", err))
 		return
 	}
 
@@ -34,10 +35,28 @@ func (apiCfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Reques
 	})
 
 	if err != nil {
-		responseWithError(w, 400, fmt.Sprintf("couldn't create user: %v", err))
+		respondWithError(w, 400, fmt.Sprintf("couldn't create user: %v", err))
 		return
 	}
 
-	responseWithJSON(w, http.StatusOK, databaseUserToUser(user))
+	respondWithJSON(w, 201, databaseUserToUser(user))
+
+}
+
+func (apiCfg *apiConfig) handlerGetUser(w http.ResponseWriter, r *http.Request) {
+
+	apikey, err := auth.GetAPIkey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Couldn't find api key")
+		return
+	}
+
+	user, err := apiCfg.DB.GetUserByAPIKey(r.Context(), apikey)
+	if err != nil {
+		respondWithError(w, 404, "user not found")
+		return
+	}
+
+	respondWithJSON(w, 200, databaseUserToUser(user))
 
 }
