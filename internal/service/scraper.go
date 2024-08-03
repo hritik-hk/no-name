@@ -1,4 +1,4 @@
-package main
+package service
 
 import (
 	"context"
@@ -13,26 +13,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hritik-hk/rss-aggregator/internal/database"
+	"github.com/hritik-hk/rss-aggregator/types"
 )
 
-type RSSFeed struct {
-	Channel struct {
-		Title       string    `xml:"title"`
-		Link        string    `xml:"link"`
-		Description string    `xml:"description"`
-		Language    string    `xml:"language"`
-		Item        []RSSItem `xml:"item"`
-	} `xml:"channel"`
-}
-
-type RSSItem struct {
-	Title       string `xml:"title"`
-	Link        string `xml:"link"`
-	Description string `xml:"description"`
-	PubDate     string `xml:"pubDate"`
-}
-
-func fetchFeed(feedURL string) (*RSSFeed, error) {
+func fetchFeed(feedURL string) (*types.RSSFeed, error) {
 	httpClient := http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -47,7 +31,7 @@ func fetchFeed(feedURL string) (*RSSFeed, error) {
 		return nil, err
 	}
 
-	var rssFeed RSSFeed
+	var rssFeed types.RSSFeed
 	err = xml.Unmarshal(dat, &rssFeed)
 	if err != nil {
 		return nil, err
@@ -56,7 +40,7 @@ func fetchFeed(feedURL string) (*RSSFeed, error) {
 	return &rssFeed, nil
 }
 
-func startScraping(db *database.Queries, concurrency int, timeBetweenRequest time.Duration) {
+func StartScraping(db *database.Queries, concurrency int, timeBetweenRequest time.Duration) {
 	log.Printf("Collecting feeds every %s on %v goroutines...", timeBetweenRequest, concurrency)
 	ticker := time.NewTicker(timeBetweenRequest)
 

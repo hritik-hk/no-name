@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -9,14 +8,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
-	"github.com/hritik-hk/rss-aggregator/internal/database"
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-)
 
-type apiConfig struct {
-	DB *database.Queries
-}
+	"github.com/hritik-hk/rss-aggregator/handlers"
+	"github.com/hritik-hk/rss-aggregator/internal/service"
+
+	"github.com/hritik-hk/rss-aggregator/config"
+)
 
 func main() {
 
@@ -27,26 +25,15 @@ func main() {
 		log.Fatal("PORT was not found in environment")
 	}
 
-	dbURL := os.Getenv("DB_URL")
-	if dbURL == "" {
-		log.Fatal("DB connection url not found in env")
-	}
-
-	connection, err := sql.Open("postgres", dbURL)
+	DbConfig, err := config.NewDbConfig()
 	if err != nil {
-		log.Fatal("can't connect to database: ", err)
+		log.Fatalf("Could not set up database: %v", err)
 	}
 
-	dbQueries := database.New(connection)
-
-	apiCfg := apiConfig{
-		DB: dbQueries,
-	}
-
-	//scraper
-	const collectionConcurrency = 10
+	//scraper configs
+	const collectionConcurrency = 5
 	const collectionInterval = time.Minute
-	go startScraping(dbQueries, collectionConcurrency, collectionInterval)
+	go service.StartScraping(DbConfig.DB, collectionConcurrency, collectionInterval)
 
 	router := chi.NewRouter()
 
@@ -61,20 +48,25 @@ func main() {
 		MaxAge:           300, // Maximum value not ignored by any of major browsers
 	}))
 
+	//create handlers
+	userHandler := handlers.UserHandler{DB: DbConfig.DB}
+	feedHandler := handlers.FeedHandler{DB: DbConfig.DB}
+	feedFollowsHandler := handlers.FeedFollowsHandler{DB: DbConfig.DB}
+
 	v1Router := chi.NewRouter()
-	v1Router.Get("/json", handlerJSON)
-	v1Router.Get("/err", handlerErr)
-	v1Router.Post("/users", apiCfg.handlerCreateUser)
-	v1Router.Get("/users", apiCfg.middlewareAuth(apiCfg.handlerGetUser))
+	v1Router.Get("/err", handlers.HandlerErr)
 
-	v1Router.Post("/feeds", apiCfg.middlewareAuth(apiCfg.handlerCreateFeed))
-	v1Router.Get("/feeds", apiCfg.handlerGetFeeds)
+	v1Router.Post("/users", userHandler.CreateUser)
+	v1Router.Get("/users", DbConfig.MiddlewareAuth(userHandler.GetUser))
 
-	v1Router.Post("/feed_follows", apiCfg.middlewareAuth(apiCfg.handlerCreateFeedFollows))
-	v1Router.Get("/feed_follows", apiCfg.middlewareAuth(apiCfg.handlerGetFeedFollows))
-	v1Router.Delete("/feed_follows/{feedFollowID}", apiCfg.middlewareAuth(apiCfg.handlerDeleteFeedFollow))
+	v1Router.Post("/feeds", DbConfig.MiddlewareAuth(feedHandler.CreateFeed))
+	v1Router.Get("/feeds", feedHandler.GetFeeds)
 
-	router.Mount("/v1", v1Router)
+	v1Router.Post("/feed_follows", DbConfig.MiddlewareAuth(feedFollowsHandler.CreateFeedFollows))
+	v1Router.Get("/feed_follows", DbConfig.MiddlewareAuth(feedFollowsHandler.GetFeedFollows))
+	v1Router.Delete("/feed_follows/{feedFollowID}", DbConfig.MiddlewareAuth(feedFollowsHandler.DeleteFeedFollow))
+
+	router.Mount("api/v1", v1Router)
 
 	server := &http.Server{
 		Handler: router,
