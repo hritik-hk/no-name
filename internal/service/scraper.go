@@ -41,7 +41,7 @@ func fetchFeed(feedURL string) (*types.RSSFeed, error) {
 }
 
 func StartScraping(db *database.Queries, concurrency int, timeBetweenRequest time.Duration) {
-	log.Printf("Collecting feeds every %s on %v goroutines...", timeBetweenRequest, concurrency)
+	log.Printf("Collecting feeds every %s on %v goroutines/threads...", timeBetweenRequest, concurrency)
 	ticker := time.NewTicker(timeBetweenRequest)
 
 	for ; ; <-ticker.C {
@@ -74,6 +74,7 @@ func scrapeFeed(db *database.Queries, wg *sync.WaitGroup, feed database.Feed) {
 		log.Printf("Couldn't collect feed %s: %v", feed.Name, err)
 		return
 	}
+
 	for _, item := range feedData.Channel.Item {
 
 		description := sql.NullString{}
@@ -82,7 +83,8 @@ func scrapeFeed(db *database.Queries, wg *sync.WaitGroup, feed database.Feed) {
 			description.Valid = true
 		}
 
-		pubAt, er := time.Parse(time.RFC1123Z, item.PubDate)
+		pubAt, er := parseDate(item.PubDate)
+
 		if er != nil {
 			log.Printf("couldn't parse publishAt date %v , err: %v", item.PubDate, er)
 			continue
@@ -108,5 +110,27 @@ func scrapeFeed(db *database.Queries, wg *sync.WaitGroup, feed database.Feed) {
 		}
 
 	}
-	log.Printf("Feed %s collected, %v posts found", feed.Name, len(feedData.Channel.Item))
+
+	log.Printf("%s RSS collected, %v posts found", feed.Name, len(feedData.Channel.Item))
+}
+
+func parseDate(dateStr string) (time.Time, error) {
+	layout := "Mon, 2 Jan 2006 15:04:05 -0700"
+	formats := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		time.RFC3339,
+		time.RFC822,
+		time.RFC850,
+		layout,
+	}
+	var pubAt time.Time
+	var err error
+	for _, format := range formats {
+		pubAt, err = time.Parse(format, dateStr)
+		if err == nil {
+			return pubAt, nil
+		}
+	}
+	return time.Time{}, err
 }

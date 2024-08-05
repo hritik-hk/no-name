@@ -24,9 +24,12 @@ func NewDbConfig() (*dbConfig, error) {
 	}
 
 	connection, err := sql.Open("postgres", dbURL)
+
 	if err != nil {
 		log.Fatal("can't connect to database: ", err)
 	}
+
+	log.Println("connected to database")
 
 	dbQueries := database.New(connection)
 

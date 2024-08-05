@@ -12,6 +12,7 @@ import (
 
 	"github.com/hritik-hk/rss-aggregator/handlers"
 	"github.com/hritik-hk/rss-aggregator/internal/service"
+	"github.com/hritik-hk/rss-aggregator/utils"
 
 	"github.com/hritik-hk/rss-aggregator/config"
 )
@@ -54,6 +55,10 @@ func main() {
 	feedFollowsHandler := handlers.FeedFollowsHandler{DB: DbConfig.DB}
 
 	v1Router := chi.NewRouter()
+	v1Router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		utils.RespondWithJSON(w, 201, "backend working")
+	})
+
 	v1Router.Get("/err", handlers.HandlerErr)
 
 	v1Router.Post("/users", userHandler.CreateUser)
@@ -66,7 +71,7 @@ func main() {
 	v1Router.Get("/feed_follows", DbConfig.MiddlewareAuth(feedFollowsHandler.GetFeedFollows))
 	v1Router.Delete("/feed_follows/{feedFollowID}", DbConfig.MiddlewareAuth(feedFollowsHandler.DeleteFeedFollow))
 
-	router.Mount("api/v1", v1Router)
+	router.Mount("/api/v1", v1Router)
 
 	server := &http.Server{
 		Handler: router,
